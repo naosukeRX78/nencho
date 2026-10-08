@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="年調R8">
+<meta name="theme-color" content="#0f1214">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>年末調整 R8</title>
+<style>
+/* Layout: 上に結果パネル（常に見える）、本文は入力カード、下にタブバー。電卓と同じ黒い本体に翡翠色の表示 */
+:root{
+  color-scheme:dark;
+  --room:#0f1214; --panel:#171b1f; --panel-2:#1d2227; --edge:#2e353d; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.14);
+  --glass:#07090a;
+  --text:#e7e9e6; --muted:#8f979c; --dim:#626a70;
+  --jade:#7fd4a8; --jade-hot:#b6f0cf; --jade-dim:rgba(127,212,168,.14); --jade-glow:rgba(90,210,150,.45);
+  --amber:#ffb547; --red:#ff8a7a; --red-dim:rgba(255,138,122,.14);
+  --f-ui:"Hiragino Sans","Hiragino Kaku Gothic ProN","BIZ UDPGothic","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  --f-num:ui-monospace,"SF Mono","Menlo","Consolas",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--room);color:var(--text)}
+body{font-family:var(--f-ui);font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+.wrap{max-width:620px;margin:0 auto;padding:calc(env(safe-area-inset-top,0px) + 10px) 14px calc(env(safe-area-inset-bottom,0px) + 86px)}
+header.top{display:flex;align-items:baseline;justify-content:space-between;margin:2px 2px 10px}
+header.top b{font-size:15px;letter-spacing:.24em}
+header.top b::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:9px;vertical-align:2px;background:var(--jade);box-shadow:0 0 8px var(--jade-glow)}
+header.top span{font-family:var(--f-num);font-size:11px;color:var(--muted);letter-spacing:.12em}
+
+/* 結果パネル */
+.result{position:sticky;top:calc(env(safe-area-inset-top,0px) + 4px);z-index:5;border-radius:16px;padding:12px 16px 12px;margin-bottom:14px;
+  background:linear-gradient(180deg,#0d1012,var(--glass));box-shadow:0 0 0 1px rgba(0,0,0,.8),0 0 0 3px #121518,0 0 0 4px var(--edge),0 12px 28px rgba(0,0,0,.5)}
+.rl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.rl .lab{font-size:12.5px;color:var(--jade);font-weight:700;letter-spacing:.1em}
+.big{font-family:var(--f-num);font-size:clamp(1.9rem,9vw,2.6rem);font-weight:600;color:var(--jade-hot);text-shadow:0 0 14px var(--jade-glow);font-variant-numeric:tabular-nums;white-space:nowrap}
+.big small{font-size:.45em;margin-left:4px;color:var(--jade)}
+.result.short .lab{color:var(--red)} .result.short .big{color:#ffc2b8;text-shadow:0 0 14px rgba(255,120,100,.4)} .result.short .big small{color:var(--red)}
+.rsub{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);font-family:var(--f-num);margin-top:2px}
+.rsub b{color:var(--text);font-weight:500}
+.warn{margin-top:6px;font-size:12px;color:var(--amber)}
+
+/* カード */
+details.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden}
+details.card>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 16px;font-weight:700;font-size:15px}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::after{content:"＋";color:var(--muted);font-weight:400}
+details.card[open]>summary::after{content:"−"}
+.sumv{margin-left:auto;font-family:var(--f-num);font-size:12.5px;color:var(--jade);font-weight:500}
+.body{padding:2px 16px 14px;display:grid;gap:12px}
+.f{display:grid;gap:5px}
+.f>label,.f>.lb{font-size:13px;color:var(--muted)}
+.f .hint{font-size:11.5px;color:var(--dim);line-height:1.5}
+.yen{position:relative}
+.yen input{padding-right:2.2em}
+.yen::after{content:"円";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none}
+.age::after{content:"歳"}
+input[type=text],select{width:100%;font:500 17px var(--f-num);color:var(--text);background:var(--panel-2);border:1px solid var(--edge);border-radius:10px;padding:10px 12px;font-variant-numeric:tabular-nums}
+select{font-family:var(--f-ui);font-size:15px;-webkit-appearance:none;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 18px) 55%,calc(100% - 13px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+input:focus,select:focus{outline:2px solid var(--jade);outline-offset:1px;border-color:transparent}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:360px){.row2{grid-template-columns:1fr}}
+.chk{display:flex;align-items:center;gap:10px;font-size:14px}
+.chk input{width:22px;height:22px;accent-color:var(--jade)}
+.seg{display:flex;background:var(--panel-2);border:1px solid var(--edge);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;font:600 13.5px var(--f-ui);color:var(--muted);background:none;border:0;border-radius:7px;padding:8px 4px}
+.seg button.on{background:var(--jade);color:#0b1a12}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;border-radius:999px;padding:3px 10px;background:var(--jade-dim);color:var(--jade);border:1px solid rgba(127,212,168,.3)}
+.chip.no{background:rgba(255,255,255,.04);color:var(--muted);border-color:var(--line-2)}
+.chip b{font-family:var(--f-num);font-weight:600}
+.person{border:1px solid var(--line-2);border-radius:12px;padding:12px;display:grid;gap:10px;background:rgba(255,255,255,.015)}
+.ph{display:flex;justify-content:space-between;align-items:center}
+.ph b{font-size:14px}
+.btn{font:600 14px var(--f-ui);color:var(--text);background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 14px}
+.btn.add{color:var(--jade);border-style:dashed}
+.btn.del{font-size:12.5px;padding:5px 10px;color:var(--muted)}
+.btn:active{background:var(--jade-dim)}
+
+/* 内訳 */
+table.kv{width:100%;border-collapse:collapse;font-size:13.5px}
+.kv td{padding:6px 0;border-bottom:1px solid var(--line)}
+.kv td:last-child{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kv tr.sub td{color:var(--muted);font-size:12.5px;padding-left:12px}
+.kv tr.tot td{font-weight:700;color:var(--jade-hot);border-bottom:1px solid var(--line-2)}
+.kv tr.zero{display:none}
+.note{font-size:12px;color:var(--muted);line-height:1.7}
+
+/* 早見表 */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.t{width:100%;border-collapse:collapse;font-size:13px;min-width:300px}
+.t th,.t td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.t th{color:var(--muted);font-weight:500;font-size:11.5px;text-align:right}
+.t th:first-child,.t td:first-child{text-align:left}
+.t td{font-family:var(--f-num)}
+.t td.j{font-family:var(--f-ui)}
+.t tr.hl td{color:var(--jade-hot)}
+h3{font-size:14px;margin:4px 0 0;letter-spacing:.06em}
+.wall{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;align-items:baseline}
+.wall .v{font-family:var(--f-num);font-size:20px;font-weight:600;color:var(--jade-hot);text-align:right}
+.wall .d{color:var(--text)}
+.wall .d small{display:block;color:var(--muted);font-size:11.5px;line-height:1.4}
+ul.pts{margin:0;padding-left:1.1em;display:grid;gap:8px;font-size:14px}
+ul.pts b{color:var(--jade-hot)}
+a{color:var(--jade)}
+
+/* 判定結果 */
+.verdict{border-radius:14px;padding:14px 16px;background:linear-gradient(180deg,#0d1012,var(--glass));box-shadow:0 0 0 1px var(--edge)}
+.verdict .k{font-size:13px;color:var(--jade);font-weight:700}
+.verdict .big{font-size:2rem}
+.verdict.no .k{color:var(--muted)} .verdict.no .big{color:var(--muted);text-shadow:none}
+.gauge{position:relative;height:10px;border-radius:5px;background:var(--panel-2);margin:14px 0 4px;overflow:hidden}
+.gauge i{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#3e9c72,var(--jade));border-radius:5px}
+.gl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);font-family:var(--f-num)}
+
+/* タブバー */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:center;background:rgba(15,18,20,.92);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line-2);padding:6px 8px calc(env(safe-area-inset-bottom,0px) + 6px)}
+nav.tabs div{display:flex;max-width:620px;width:100%}
+nav.tabs button{flex:1;background:none;border:0;color:var(--muted);font:600 12px var(--f-ui);padding:6px 0 4px;display:grid;justify-items:center;gap:3px}
+nav.tabs button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+nav.tabs button.on{color:var(--jade)}
+.foot{font-size:11.5px;color:var(--dim);line-height:1.7;margin:16px 4px 0}
+.btn.reset{width:100%;margin-top:4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><b>年末調整 R8</b><span>令和8年分・12月精算</span></header>
+
+  <!-- ===== 試算 ===== -->
+  <section id="v-calc">
+    <div class="result" id="res">
+      <div class="rl"><span class="lab" id="resLab">還付（超過額）</span><span class="big" id="resBig">0<small>円</small></span></div>
+      <div class="rsub"><span>年調年税額 <b id="resTax">0</b></span><span>源泉徴収済 <b id="resWh">0</b></span><span>課税所得 <b id="resTxb">0</b></span></div>
+      <div class="warn" id="resWarn" hidden></div>
+    </div>
+
+    <details class="card" open>
+      <summary>本人<span class="sumv" id="s1"></span></summary>
+      <div class="body">
+        <div class="f"><label for="salary">本年中の給与等の支払金額（賞与を含む）</label><div class="yen"><input type="text" inputmode="numeric" id="salary" data-k="salary"></div></div>
+        <div class="f"><label for="withheld">源泉徴収済みの所得税額（1〜12月分）</label><div class="yen"><input type="text" inputmode="numeric" id="withheld" data-k="withheld"></div></div>
+        <div class="f"><label for="otherIncome">給与以外の所得の見積額</label><div class="yen"><input type="text" inputmode="numeric" id="otherIncome" data-k="otherIncome"></div><div class="hint">基礎控除・配偶者控除などの判定に使う合計所得金額に加算されます（年税額の計算対象ではありません）。</div></div>
+        <div class="row2">
+          <div class="f"><label for="honninShogai">本人の障害者控除</label><select id="honninShogai" data-k="honninShogai"><option value="">なし</option><option value="ippan">障害者（27万円）</option><option value="tokubetsu">特別障害者（40万円）</option></select></div>
+          <div class="f"><label for="kafu">寡婦・ひとり親</label><select id="kafu" data-k="kafu"><option value="">なし</option><option value="kafu">寡婦（27万円）</option><option value="hitorioya">ひとり親（35万円）</option></select></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="kinroGakusei" data-k="kinroGakusei">勤労学生（27万円・合計所得89万円以下）</label>
+        <div class="note" id="honNote"></div>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>配偶者<span class="sumv" id="s2"></span></summary>
+      <div class="body">
+        <label class="chk"><input type="checkbox" id="spHas">配偶者がいる</label>
+        <div id="spBox" class="body" style="padding:0">
+          <div class="row2">
+            <div class="f"><label for="spAge">12月31日時点の年齢</label><div class="yen age"><input type="text" inputmode="numeric" id="spAge"></div></div>
+            <div class="f"><label for="spShogai">障害者控除</label><select id="spShogai"><option value="">なし</option><option value="ippan">障害者（27万円）</option><option value="tokubetsu">特別障害者（40万円）</option><option value="doukyo">同居特別障害者（75万円）</option></select></div>
+          </div>
+          <div class="row2">
+            <div class="f"><label for="spSalary">給与収入（年間）</label><div class="yen"><input type="text" inputmode="numeric" id="spSalary"></div></div>
+            <div class="f"><label for="spOther">給与以外の所得</label><div class="yen"><input type="text" inputmode="numeric" id="spOther"></div></div>
+          </div>
+          <div id="spRes"></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>扶養親族・子<span class="sumv" id="s3"></span></summary>
+      <div class="body">
+        <div id="deps" style="display:grid;gap:10px"></div>
+        <button class="btn add" type="button" id="addDep">＋ 扶養親族を追加</button>
+        <div class="note">16歳未満の子も追加してください。扶養控除はありませんが、生命保険料控除の特例（23歳未満）や所得金額調整控除の判定に使います。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>保険料・掛金<span class="sumv" id="s4"></span></summary>
+      <div class="body">
+        <div class="f"><label for="shaho">社会保険料（給与天引き分＋申告分）</label><div class="yen"><input type="text" inputmode="numeric" id="shaho" data-k="shaho"></div></div>
+        <div class="f"><label for="shokibo">小規模企業共済等掛金（iDeCoなど）</label><div class="yen"><input type="text" inputmode="numeric" id="shokibo" data-k="shokibo"></div></div>
+        <div class="lb" style="font-size:13px;color:var(--muted)">生命保険料（年間の支払額）</div>
+        <div class="row2">
+          <div class="f"><label for="ippanNew">一般・新契約</label><div class="yen"><input type="text" inputmode="numeric" id="ippanNew" data-s="ippanNew"></div></div>
+          <div class="f"><label for="ippanOld">一般・旧契約</label><div class="yen"><input type="text" inputmode="numeric" id="ippanOld" data-s="ippanOld"></div></div>
+          <div class="f"><label for="kaigo">介護医療</label><div class="yen"><input type="text" inputmode="numeric" id="kaigo" data-s="kaigo"></div></div>
+          <div class="f"><label for="nenkinNew">個人年金・新契約</label><div class="yen"><input type="text" inputmode="numeric" id="nenkinNew" data-s="nenkinNew"></div></div>
+          <div class="f"><label for="nenkinOld">個人年金・旧契約</label><div class="yen"><input type="text" inputmode="numeric" id="nenkinOld" data-s="nenkinOld"></div></div>
+        </div>
+        <div class="note" id="seihoNote"></div>
+        <div class="row2">
+          <div class="f"><label for="jishin">地震保険料</label><div class="yen"><input type="text" inputmode="numeric" id="jishin" data-k="jishin"></div></div>
+          <div class="f"><label for="jishinOld">旧長期損害保険料</label><div class="yen"><input type="text" inputmode="numeric" id="jishinOld" data-k="jishinOld"></div></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>住宅ローン控除<span class="sumv" id="s5"></span></summary>
+      <div class="body">
+        <div class="f"><label for="jutaku">住宅借入金等特別控除額（申告書の控除額）</label><div class="yen"><input type="text" inputmode="numeric" id="jutaku" data-k="jutaku"></div><div class="hint">算出所得税額が上限です。控除しきれない分は住民税側で控除されます。</div></div>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>計算の内訳</summary>
+      <div class="body"><table class="kv" id="kv"></table></div>
+    </details>
+    <button class="btn reset" type="button" id="reset">入力をすべて消す</button>
+  </section>
+
+  <!-- ===== 扶養判定 ===== -->
+  <section id="v-judge" hidden>
+    <div class="body" style="padding:0;gap:14px">
+      <div class="seg" id="jKind"><button type="button" data-v="dep" class="on">子・親族</button><button type="button" data-v="sp">配偶者</button><button type="button" data-v="self">本人</button></div>
+      <div class="row2">
+        <div class="f" id="jAgeF"><label for="jAge">12月31日時点の年齢</label><div class="yen age"><input type="text" inputmode="numeric" id="jAge" value="20"></div></div>
+        <div class="f" id="jHonF" hidden><label for="jHon">本人（納税者）の合計所得</label><select id="jHon"><option value="0">900万円以下（給与1,095万円以下）</option><option value="9200000">900万円超950万円以下</option><option value="9700000">950万円超1,000万円以下</option><option value="11000000">1,000万円超</option></select></div>
+      </div>
+      <div class="row2">
+        <div class="f"><label for="jSal">給与収入（年間）</label><div class="yen"><input type="text" inputmode="numeric" id="jSal" value="1,500,000"></div></div>
+        <div class="f"><label for="jOth">給与以外の所得</label><div class="yen"><input type="text" inputmode="numeric" id="jOth"></div></div>
+      </div>
+      <div id="jOut"></div>
+    </div>
+  </section>
+
+  <!-- ===== 早見表 ===== -->
+  <section id="v-table" hidden>
+    <details class="card" open><summary>年収の壁（給与収入だけの場合）</summary><div class="body"><div class="wall" id="walls"></div></div></details>
+    <details class="card" open><summary>基礎控除</summary><div class="body"><div class="tw"><table class="t" id="tKiso"></table></div></div></details>
+    <details class="card"><summary>配偶者控除・配偶者特別控除</summary><div class="body"><div class="tw"><table class="t" id="tHai"></table></div><div class="note">配偶者控除の（ ）は老人控除対象配偶者（70歳以上）。本人の合計所得金額1,000万円超は適用なし。</div></div></details>
+    <details class="card"><summary>扶養控除・特定親族特別控除</summary><div class="body"><div class="tw"><table class="t" id="tFuyo"></table></div><div class="tw"><table class="t" id="tTok"></table></div></div></details>
+    <details class="card"><summary>給与所得（令和8・9年分の特例を含む）</summary><div class="body"><div class="tw"><table class="t" id="tKyu"></table></div></div></details>
+    <details class="card"><summary>生命保険料控除（23歳未満の扶養親族がいる場合）</summary><div class="body"><div class="tw"><table class="t" id="tSei"></table></div><div class="note">一般生命保険料控除（新契約）のみの特例。旧契約と併用時の上限は6万円、3区分合計の上限は12万円のまま。</div></div></details>
+    <details class="card"><summary>所得税の税率</summary><div class="body"><div class="tw"><table class="t" id="tRate"></table></div><div class="note">年調年税額＝（算出所得税額−住宅借入金等特別控除）×102.1%、100円未満切捨て。</div></div></details>
+  </section>
+
+  <!-- ===== 改正点 ===== -->
+  <section id="v-kaisei" hidden>
+    <details class="card" open><summary>令和8年分で変わった点</summary><div class="body"><ul class="pts">
+      <li><b>基礎控除の引上げ</b>：合計所得金額489万円以下は<b>104万円</b>（令和7年分は所得に応じ95万〜68万円）。489万円超655万円以下は67万円、655万円超2,350万円以下は62万円。</li>
+      <li><b>給与所得控除の最低保障額</b>：65万円 →<b> 74万円</b>（令和8・9年分の特例）。給与収入190万円以下の人が対象。</li>
+      <li><b>扶養親族等の所得要件</b>：58万円 →<b> 62万円</b>（給与収入123万円 → 136万円）。同一生計配偶者・ひとり親の子も同じ。</li>
+      <li><b>特定親族特別控除</b>：19〜22歳の親族の所得が62万円超123万円以下（給与収入136万円超197万円以下）で3万〜63万円。</li>
+      <li><b>配偶者特別控除</b>：配偶者の所得62万円超133万円以下（給与収入136万円超207万円以下）。</li>
+      <li><b>勤労学生</b>：合計所得89万円以下（給与収入163万円以下）。</li>
+      <li><b>生命保険料控除の特例</b>：23歳未満の扶養親族がいる場合、一般生命保険料（新契約）の控除上限が4万円 → <b>6万円</b>。</li>
+    </ul></div></details>
+    <details class="card" open><summary>実務上の扱い</summary><div class="body"><ul class="pts">
+      <li>改正は<b>令和8年12月1日施行</b>。11月までの毎月の源泉徴収は改正前の税額表のまま。</li>
+      <li><b>12月の年末調整</b>で、改正後の基礎控除と令和8年分の「年末調整等のための給与所得控除後の給与等の金額の表」により年税額を計算し、差額を精算する。</li>
+      <li>要件緩和で<b>新たに扶養親族等になる人</b>がいる場合は、扶養控除等（異動）申告書の提出が必要。</li>
+      <li>生命保険料控除の特例は、保険料控除申告書で23歳未満の扶養親族の記載が必要。</li>
+      <li>令和10年分以後は基礎控除・給与所得控除が再び変わる予定（物価連動で2年ごとに見直し）。</li>
+    </ul></div></details>
+    <details class="card"><summary>出典</summary><div class="body note">
+      国税庁「令和8年分 年末調整のしかた」<br><a href="https://www.nta.go.jp/publication/pamph/gensen/nencho2026/01.htm" target="_blank" rel="noopener">nta.go.jp/publication/pamph/gensen/nencho2026/</a><br>
+      国税庁 タックスアンサー No.1199 基礎控除<br><a href="https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm" target="_blank" rel="noopener">nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm</a><br>
+      国税庁「令和8年度税制改正による基礎控除の引上げ等について」（令和8年5月）
+    </div></details>
+  </section>
+
+  <p class="foot">試算用のツールです。最終的な判定・税額は国税庁「令和8年分 年末調整のしかた」で確認してください。入力内容はこの端末の中だけに保存され、外部には送信されません。</p>
+</div>
+
+<nav class="tabs"><div>
+  <button type="button" data-tab="calc" class="on"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8 7h8M8 11h2M12 11h2M16 11v6M8 14h2M12 14h2M8 17h6"/></svg>試算</button>
+  <button type="button" data-tab="judge"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><path d="M15.5 11.5l2 2 3.5-4"/></svg>扶養判定</button>
+  <button type="button" data-tab="table"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M10 4.5v15"/></svg>早見表</button>
+  <button type="button" data-tab="kaisei"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.4 5 5.4.6-4 3.7 1.1 5.4L12 15.5l-4.9 2.7 1.1-5.4-4-3.7 5.4-.6z"/></svg>改正点</button>
+</div></nav>
+
+<script>
+/* 令和8年分 年末調整 計算ロジック
+   出典：国税庁「令和8年分 年末調整のしかた」・タックスアンサーNo.1199、
+         「令和8年度税制改正による基礎控除の引上げ等について」（令和8年5月）
+   ※ 令和8年12月の年末調整で適用される額 */
+var NC = (function(){
+  const R = {
+    year: 2026,
+    // 基礎控除（合計所得金額の上限, 控除額）
+    kiso: [[4890000,1040000],[6550000,670000],[23500000,620000],[24000000,480000],[24500000,320000],[25000000,160000]],
+    fuyoLimit: 620000,          // 扶養親族・同一生計配偶者の合計所得要件
+    tokuteiShinzokuMax: 1230000,// 特定親族の上限
+    haiTokuMax: 1330000,        // 配偶者特別控除の上限
+    kinroGakuseiMax: 890000,    // 勤労学生
+    // 配偶者特別控除（配偶者の合計所得の上限, [本人900万以下, 950万以下, 1000万以下]）
+    haiToku: [[950000,[380000,260000,130000]],[1000000,[360000,240000,120000]],[1050000,[310000,210000,110000]],
+              [1100000,[260000,180000,90000]],[1150000,[210000,140000,70000]],[1200000,[160000,110000,60000]],
+              [1250000,[110000,80000,40000]],[1300000,[60000,40000,20000]],[1330000,[30000,20000,10000]]],
+    haiKojo: [380000,260000,130000], haiKojoRojin: [480000,320000,160000],
+    // 特定親族特別控除（子等の合計所得の上限, 控除額）
+    tokuteiShinzoku: [[850000,630000],[900000,610000],[950000,510000],[1000000,410000],[1050000,310000],
+                      [1100000,210000],[1150000,110000],[1200000,60000],[1230000,30000]],
+    // 所得税の速算表（課税所得の上限, 税率, 控除額）
+    rate: [[1949000,0.05,0],[3299000,0.10,97500],[6949000,0.20,427500],[8999000,0.23,636000],
+           [17999000,0.33,1536000],[39999000,0.40,2796000],[Infinity,0.45,4796000]]
+  };
+
+  // 給与所得（年末調整等のための給与所得控除後の給与等の金額。令和8・9年分の特例を含む）
+  function kyuyoShotoku(x){
+    x = Math.max(0, Math.floor(x||0));
+    if (x < 741000) return 0;
+    if (x < 2191000) return x - 740000;
+    if (x < 2193000) return 1451000;
+    if (x < 2196000) return 1453000;
+    if (x < 2200000) return 1456000;
+    if (x < 6600000){
+      const A = Math.floor(x/4/1000)*1000;
+      return x < 3600000 ? A*28/10 - 80000 : A*32/10 - 440000;
+    }
+    if (x < 8500000) return Math.floor(x*9/10) - 1100000;
+    return x - 1950000;
+  }
+  // 給与所得控除額（参考表示用）
+  function kyuyoKojo(x){ x=Math.max(0,Math.floor(x||0)); return x - kyuyoShotoku(x) }
+
+  // 所得金額調整控除（子ども・特別障害者等）
+  function choseiKojo(x, eligible){
+    if (!eligible || x <= 8500000) return 0;
+    return Math.ceil((Math.min(x,10000000) - 8500000) / 10);
+  }
+  function kiso(goukei){
+    for (const [lim,v] of R.kiso) if (goukei <= lim) return v;
+    return 0;
+  }
+  function honninBracket(G){ return G <= 9000000 ? 0 : G <= 9500000 ? 1 : 2 }
+
+  // 配偶者
+  function haigusha(G, sp){
+    const S = kyuyoShotoku(sp.salary) + (sp.other||0);
+    const r = {goukei:S, kojo:0, kind:'', note:''};
+    if (!sp.has) return r;
+    const sameLife = S <= R.fuyoLimit;
+    if (G > 10000000){
+      r.kind = '対象外'; r.note = '本人の合計所得金額が1,000万円超のため配偶者（特別）控除なし';
+    } else if (sameLife){
+      const b = honninBracket(G);
+      r.kojo = (sp.age >= 70 ? R.haiKojoRojin : R.haiKojo)[b];
+      r.kind = sp.age >= 70 ? '配偶者控除（老人）' : '配偶者控除';
+    } else if (S <= R.haiTokuMax){
+      const b = honninBracket(G);
+      for (const [lim,arr] of R.haiToku) if (S <= lim){ r.kojo = arr[b]; break }
+      r.kind = '配偶者特別控除';
+    } else { r.kind = '対象外'; r.note = '配偶者の合計所得金額が133万円超' }
+    r.shogai = sameLife ? shogaiKojo(sp.shogai) : 0;
+    return r;
+  }
+  function shogaiKojo(k){ return k==='ippan'?270000 : k==='tokubetsu'?400000 : k==='doukyo'?750000 : 0 }
+
+  // 扶養親族等
+  function fuyo(d){
+    const S = kyuyoShotoku(d.salary) + (d.other||0);
+    const a = d.age;
+    const r = {goukei:S, kojo:0, kind:'', shogai:0, under23:false, fuyoShinzoku:false};
+    if (S <= R.fuyoLimit){
+      r.fuyoShinzoku = true; r.under23 = a < 23;
+      if (a < 16){ r.kind = '年少扶養親族（扶養控除なし）' }
+      else if (a >= 19 && a <= 22){ r.kojo = 630000; r.kind = '特定扶養親族' }
+      else if (a >= 70){ r.kojo = d.doukyoRoshin ? 580000 : 480000; r.kind = d.doukyoRoshin ? '老人扶養親族（同居老親等）' : '老人扶養親族' }
+      else { r.kojo = 380000; r.kind = '一般の控除対象扶養親族' }
+      r.shogai = shogaiKojo(d.shogai);
+    } else if (a >= 19 && a <= 22 && S <= R.tokuteiShinzokuMax){
+      for (const [lim,v] of R.tokuteiShinzoku) if (S <= lim){ r.kojo = v; break }
+      r.kind = '特定親族特別控除';
+    } else {
+      r.kind = '対象外（合計所得金額が' + (a>=19&&a<=22 ? '123' : '62') + '万円超）';
+    }
+    return r;
+  }
+
+  const ceil = Math.ceil;
+  function seihoNew(p){ return p<=20000?p : p<=40000?ceil(p/2+10000) : p<=80000?ceil(p/4+20000) : 40000 }
+  function seihoNewSp(p){ return p<=30000?p : p<=60000?ceil(p/2+15000) : p<=120000?ceil(p/4+30000) : 60000 }
+  function seihoOld(p){ return p<=25000?p : p<=50000?ceil(p/2+12500) : p<=100000?ceil(p/4+25000) : 50000 }
+  function seiho(s, special){
+    const gn = special ? seihoNewSp(s.ippanNew||0) : seihoNew(s.ippanNew||0);
+    const go = seihoOld(s.ippanOld||0);
+    const ippan = Math.max(go, Math.min(gn+go, special ? 60000 : 40000));
+    const kaigo = seihoNew(s.kaigo||0);
+    const nn = seihoNew(s.nenkinNew||0), no = seihoOld(s.nenkinOld||0);
+    const nenkin = Math.max(no, Math.min(nn+no, 40000));
+    return {ippan, kaigo, nenkin, total: Math.min(ippan+kaigo+nenkin, 120000)};
+  }
+  function jishin(e, old){
+    const a = Math.min(e||0, 50000);
+    const o = old<=10000 ? (old||0) : old<=20000 ? ceil(old/2+5000) : 15000;
+    return Math.min(a+o, 50000);
+  }
+  function incomeTax(taxable){
+    for (const [lim,r,k] of R.rate) if (taxable <= lim) return Math.max(0, Math.round(taxable*r) - k);
+    return 0;
+  }
+
+  function nencho(inp){
+    const x = Math.floor(inp.salary||0);
+    const deps = (inp.deps||[]).map(fuyo);
+    const sp0 = inp.spouse||{has:false};
+    const spS = kyuyoShotoku(sp0.salary)+(sp0.other||0);
+    const under23 = deps.some(d=>d.under23);
+    const tokuShogaiFam = deps.some((d,i)=>d.fuyoShinzoku && /tokubetsu|doukyo/.test((inp.deps[i]||{}).shogai||'')) ||
+                          (sp0.has && spS<=R.fuyoLimit && /tokubetsu|doukyo/.test(sp0.shogai||''));
+    const choseiEligible = !!inp.honninTokubetsuShogai || under23 || tokuShogaiFam;
+    const ks = kyuyoShotoku(x);
+    const chosei = choseiKojo(x, choseiEligible);
+    const kyuyo = ks - chosei;
+    const G = kyuyo + (inp.otherIncome||0);
+    const sp = haigusha(G, sp0);
+    const sh = seiho(inp.seiho||{}, under23);
+    const ji = jishin(inp.jishin||0, inp.jishinOld||0);
+    const honShogai = shogaiKojo(inp.honninShogai);
+    let kafu = 0, kafuNote='';
+    if (inp.kafu==='hitorioya'){ if (G<=5000000) kafu=350000; else kafuNote='合計所得500万円超のため不可' }
+    if (inp.kafu==='kafu'){ if (G<=5000000) kafu=270000; else kafuNote='合計所得500万円超のため不可' }
+    let kinro = 0, kinroNote='';
+    if (inp.kinroGakusei){ if (G<=R.kinroGakuseiMax && (inp.otherIncome||0)<=100000) kinro=270000; else kinroNote='所得要件（89万円以下）を超えるため不可' }
+    const fuyoTotal = deps.reduce((s,d)=>s+d.kojo,0);
+    const shogaiTotal = honShogai + (sp.shogai||0) + deps.reduce((s,d)=>s+d.shogai,0);
+    const kisoK = kiso(G);
+    const shaho = Math.floor(inp.shaho||0), shokibo = Math.floor(inp.shokibo||0);
+    const items = [
+      ['社会保険料控除', shaho], ['小規模企業共済等掛金控除', shokibo],
+      ['生命保険料控除', sh.total], ['地震保険料控除', ji],
+      ['配偶者（特別）控除', sp.kojo], ['扶養控除・特定親族特別控除', fuyoTotal],
+      ['障害者控除', shogaiTotal], [inp.kafu==='kafu'?'寡婦控除':'ひとり親控除', kafu],
+      ['勤労学生控除', kinro], ['基礎控除', kisoK]
+    ];
+    const kojoTotal = items.reduce((s,[,v])=>s+v,0);
+    const taxable = Math.floor(Math.max(0, kyuyo - kojoTotal)/1000)*1000;
+    const sanshutsu = incomeTax(taxable);
+    const jutaku = Math.min(Math.floor(inp.jutaku||0), sanshutsu);
+    const nenchoShotoku = sanshutsu - jutaku;
+    const nenzei = Math.floor(nenchoShotoku*1021/100000)*100;
+    const withheld = Math.floor(inp.withheld||0);
+    return {x, ks, kyuyoKojo:x-ks, chosei, choseiEligible, kyuyo, G, sp, deps, seiho:sh, jishin:ji, kafu, kafuNote, kinro, kinroNote,
+            kiso:kisoK, items, kojoTotal, taxable, sanshutsu, jutaku, nenchoShotoku, nenzei, withheld, diff: withheld - nenzei,
+            over20m: x > 20000000};
+  }
+  return {R, kyuyoShotoku, kyuyoKojo, choseiKojo, kiso, haigusha, fuyo, seiho, jishin, incomeTax, nencho};
+})();
+if (typeof module !== 'undefined') module.exports = NC;
+
+</script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('ja-JP');
+const man=n=>{const v=n/10000;return (Number.isInteger(v)?v.toLocaleString('ja-JP'):v.toLocaleString('ja-JP',{maximumFractionDigits:2}))+'万円'};
+const num=v=>{const n=parseInt(String(v||'').replace(/[^\d]/g,''),10);return isNaN(n)?0:n};
+const LS='nencho-r8-v1';
+
+/* ---------- 状態 ---------- */
+let S={salary:0,withheld:0,otherIncome:0,honninShogai:'',kafu:'',kinroGakusei:false,shaho:0,shokibo:0,jishin:0,jishinOld:0,jutaku:0,
+  seiho:{ippanNew:0,ippanOld:0,kaigo:0,nenkinNew:0,nenkinOld:0},spouse:{has:false,age:45,salary:0,other:0,shogai:''},deps:[]};
+let sample=true;
+try{const d=JSON.parse(localStorage.getItem(LS)||'null');if(d){S=Object.assign(S,d);sample=false}}catch(e){}
+if(sample){ // 初回だけ入る見本（画面上で「見本」と表示）
+  S.salary=5000000;S.withheld=118000;S.shaho=750000;S.seiho.ippanNew=100000;
+  S.spouse={has:true,age:45,salary:1000000,other:0,shogai:''};
+  S.deps=[{age:20,salary:1500000,other:0,shogai:'',doukyoRoshin:false},{age:10,salary:0,other:0,shogai:'',doukyoRoshin:false}];
+}
+function save(){if(sample)return;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function touched(){if(sample){sample=false;$('resWarn').hidden=true}save()}
+
+/* ---------- 金額入力 ---------- */
+function bindMoney(el,get,set){
+  el.value=get()?fmt(get()):'';
+  el.addEventListener('input',()=>{set(num(el.value));touched();calc()});
+  el.addEventListener('blur',()=>{el.value=get()?fmt(get()):''});
+  el.addEventListener('focus',()=>{el.value=get()?String(get()):'';setTimeout(()=>el.select(),0)});
+}
+document.querySelectorAll('[data-k]').forEach(el=>{
+  const k=el.dataset.k;
+  if(el.type==='checkbox'){el.checked=!!S[k];el.addEventListener('change',()=>{S[k]=el.checked;touched();calc()})}
+  else if(el.tagName==='SELECT'){el.value=S[k]||'';el.addEventListener('change',()=>{S[k]=el.value;touched();calc()})}
+  else bindMoney(el,()=>S[k],v=>S[k]=v);
+});
+document.querySelectorAll('[data-s]').forEach(el=>{const k=el.dataset.s;bindMoney(el,()=>S.seiho[k],v=>S.seiho[k]=v)});
+
+/* 配偶者 */
+$('spHas').checked=S.spouse.has;
+$('spHas').addEventListener('change',()=>{S.spouse.has=$('spHas').checked;touched();calc()});
+bindMoney($('spAge'),()=>S.spouse.age,v=>S.spouse.age=v);
+bindMoney($('spSalary'),()=>S.spouse.salary,v=>S.spouse.salary=v);
+bindMoney($('spOther'),()=>S.spouse.other,v=>S.spouse.other=v);
+$('spShogai').value=S.spouse.shogai||'';$('spShogai').addEventListener('change',()=>{S.spouse.shogai=$('spShogai').value;touched();calc()});
+
+/* 扶養親族 */
+function renderDeps(){
+  const box=$('deps');box.innerHTML='';
+  S.deps.forEach((d,i)=>{
+    const el=document.createElement('div');el.className='person';
+    el.innerHTML=`<div class="ph"><b>扶養親族 ${i+1}</b><button class="btn del" type="button">削除</button></div>
+      <div class="row2"><div class="f"><label>12月31日時点の年齢</label><div class="yen age"><input type="text" inputmode="numeric" data-f="age" id="dAge${i}"></div></div>
+      <div class="f"><label>障害者控除</label><select data-f="shogai" id="dSh${i}"><option value="">なし</option><option value="ippan">障害者（27万円）</option><option value="tokubetsu">特別障害者（40万円）</option><option value="doukyo">同居特別障害者（75万円）</option></select></div></div>
+      <div class="row2"><div class="f"><label>給与収入（年間）</label><div class="yen"><input type="text" inputmode="numeric" data-f="salary" id="dSal${i}"></div></div>
+      <div class="f"><label>給与以外の所得</label><div class="yen"><input type="text" inputmode="numeric" data-f="other" id="dOth${i}"></div></div></div>
+      <label class="chk" data-roshin><input type="checkbox" id="dRo${i}">同居老親等（本人または配偶者の直系尊属で同居）</label>
+      <div data-res></div>`;
+    el.querySelectorAll('input[data-f]').forEach(inp=>{const f=inp.dataset.f;bindMoney(inp,()=>d[f],v=>d[f]=v)});
+    const sel=el.querySelector('select');sel.value=d.shogai||'';sel.addEventListener('change',()=>{d.shogai=sel.value;touched();calc()});
+    const ro=el.querySelector('[data-roshin] input');ro.checked=!!d.doukyoRoshin;ro.addEventListener('change',()=>{d.doukyoRoshin=ro.checked;touched();calc()});
+    el.querySelector('.del').addEventListener('click',()=>{S.deps.splice(i,1);touched();renderDeps();calc()});
+    box.appendChild(el);
+  });
+}
+$('addDep').addEventListener('click',()=>{S.deps.push({age:16,salary:0,other:0,shogai:'',doukyoRoshin:false});touched();renderDeps();calc()});
+
+function chip(kind,kojo,extra){
+  const ok=kojo>0;
+  return `<span class="chip${ok?'':' no'}">${kind}${ok?` <b>${man(kojo)}</b>`:''}</span>${extra?`<div class="note" style="margin-top:6px">${extra}</div>`:''}`;
+}
+
+/* ---------- 計算と表示 ---------- */
+function calc(){
+  const r=NC.nencho(S);
+  // 結果パネル
+  const res=$('res');const short=r.diff<0;
+  res.classList.toggle('short',short);
+  $('resLab').textContent=short?'不足額（12月給与で徴収）':'超過額（還付）';
+  $('resBig').innerHTML=fmt(Math.abs(r.diff))+'<small>円</small>';
+  $('resTax').textContent=fmt(r.nenzei);$('resWh').textContent=fmt(r.withheld);$('resTxb').textContent=fmt(r.taxable);
+  const w=[];
+  if(sample)w.push('見本の数字が入っています。入力するとご自身の計算に切り替わります。');
+  if(r.over20m)w.push('給与収入2,000万円超は年末調整の対象外です（確定申告）。');
+  $('resWarn').hidden=!w.length;$('resWarn').textContent=w.join(' ');
+  // カードの要約
+  $('s1').textContent=r.x?`給与所得 ${fmt(r.kyuyo)}`:'';
+  $('s2').textContent=S.spouse.has?(r.sp.kojo?man(r.sp.kojo):'控除なし'):'';
+  const dk=r.deps.reduce((s,d)=>s+d.kojo,0);$('s3').textContent=S.deps.length?`${S.deps.length}人・${man(dk)}`:'';
+  $('s4').textContent=fmt(r.items[0][1]+r.items[1][1]+r.seiho.total+r.jishin)+'円';
+  $('s5').textContent=r.jutaku?fmt(r.jutaku)+'円':'';
+  // 本人メモ
+  const hn=[`合計所得金額（見積）${fmt(r.G)}円 → 基礎控除 ${man(r.kiso)}`];
+  if(r.chosei)hn.push(`所得金額調整控除 ${fmt(r.chosei)}円（給与850万円超・23歳未満の扶養親族等）`);
+  if(r.kafuNote)hn.push('寡婦・ひとり親：'+r.kafuNote);if(r.kinroNote)hn.push('勤労学生：'+r.kinroNote);
+  $('honNote').innerHTML=hn.join('<br>');
+  // 配偶者
+  $('spBox').hidden=!S.spouse.has;
+  if(S.spouse.has){
+    const sp=r.sp;
+    $('spRes').innerHTML=chip(sp.kind||'対象外',sp.kojo,`配偶者の合計所得金額 ${fmt(sp.goukei)}円${sp.note?'。'+sp.note:''}${sp.shogai?`。障害者控除 ${man(sp.shogai)}`:''}`);
+  }
+  // 扶養
+  document.querySelectorAll('#deps .person').forEach((el,i)=>{
+    const d=r.deps[i],inp=S.deps[i];
+    el.querySelector('[data-roshin]').hidden=!(inp.age>=70);
+    const ex=[`合計所得金額 ${fmt(d.goukei)}円`];if(d.shogai)ex.push(`障害者控除 ${man(d.shogai)}`);if(d.under23)ex.push('23歳未満（生保特例・調整控除の対象）');
+    el.querySelector('[data-res]').innerHTML=chip(d.kind,d.kojo,ex.join('。'));
+  });
+  const anyU23=r.deps.some(d=>d.under23);
+  $('seihoNote').textContent=`生命保険料控除 ${fmt(r.seiho.total)}円（一般 ${fmt(r.seiho.ippan)}／介護医療 ${fmt(r.seiho.kaigo)}／個人年金 ${fmt(r.seiho.nenkin)}）`+(anyU23?'。23歳未満の扶養親族がいるため一般（新契約）は上限6万円の特例で計算':'');
+  // 内訳
+  const rows=[['給与等の支払金額',r.x,''],['給与所得控除額',r.kyuyoKojo,'sub'],['給与所得控除後の給与等の金額',r.ks,'']];
+  if(r.chosei)rows.push(['所得金額調整控除',r.chosei,'sub'],['調整控除後の給与所得',r.kyuyo,'']);
+  r.items.forEach(([n,v])=>rows.push([n,v,'sub'+(v?'':' zero')]));
+  rows.push(['所得控除の合計',r.kojoTotal,'tot'],['課税給与所得金額（千円未満切捨て）',r.taxable,''],['算出所得税額',r.sanshutsu,''],
+    ['住宅借入金等特別控除',r.jutaku,'sub'+(r.jutaku?'':' zero')],['年調所得税額',r.nenchoShotoku,''],['年調年税額（×102.1%・百円未満切捨て）',r.nenzei,'tot'],
+    ['源泉徴収済みの税額',r.withheld,''],[r.diff>=0?'差引超過額（還付）':'差引不足額（徴収）',Math.abs(r.diff),'tot']);
+  $('kv').innerHTML=rows.map(([n,v,c])=>`<tr class="${c}"><td>${n}</td><td>${fmt(v)}</td></tr>`).join('');
+}
+
+/* ---------- 扶養判定 ---------- */
+let jKind='dep';
+document.querySelectorAll('#jKind button').forEach(b=>b.addEventListener('click',()=>{
+  jKind=b.dataset.v;document.querySelectorAll('#jKind button').forEach(x=>x.classList.toggle('on',x===b));judge();
+}));
+['jAge','jSal','jOth'].forEach(id=>{const el=$(id);el.addEventListener('input',judge);
+  if(id!=='jAge')el.addEventListener('blur',()=>{const v=num(el.value);el.value=v?fmt(v):''})});
+$('jHon').addEventListener('change',judge);
+function gauge(val,max,ticks){
+  const p=Math.max(0,Math.min(100,val/max*100));
+  return `<div class="gauge"><i style="width:${p}%"></i></div><div class="gl">${ticks.map(t=>`<span>${t}</span>`).join('')}</div>`;
+}
+function judge(){
+  const age=num($('jAge').value),sal=num($('jSal').value),oth=num($('jOth').value);
+  $('jAgeF').hidden=jKind==='self';$('jHonF').hidden=jKind!=='sp';
+  const ks=NC.kyuyoShotoku(sal),G=ks+oth;let h='';
+  if(jKind==='dep'){
+    const d=NC.fuyo({age,salary:sal,other:oth});
+    const lim=(age>=19&&age<=22)?1970000:1360000;
+    h=`<div class="verdict${d.kojo?'':' no'}"><div class="k">${d.kind}</div><div class="big">${d.kojo?man(d.kojo):'控除なし'}</div>
+      <div class="rsub">給与所得 <b>${fmt(ks)}</b>　合計所得 <b>${fmt(G)}</b></div>
+      ${gauge(sal,2200000,['0','136万','197万','220万'])}</div>
+      <div class="note" style="margin-top:10px">${age<16?'16歳未満は扶養控除の対象外です（住民税・生保特例の判定には関係します）。':
+        age>=19&&age<=22?`19〜22歳：給与収入136万円以下なら特定扶養控除63万円、136万円超197万円以下なら特定親族特別控除（63万〜3万円の段階）。159万円以下は満額63万円。`:
+        `給与収入136万円（合計所得62万円）以下なら扶養控除。${age>=70?'70歳以上は老人扶養48万円、同居老親等は58万円。':'控除額38万円。'}`}
+        ${sal>0&&oth===0?`<br>あと <b style="color:var(--jade-hot)">${fmt(Math.max(0,lim-sal))}円</b> で上限（給与収入${man(lim)}）。`:''}</div>`;
+  }else if(jKind==='sp'){
+    const hon=num($('jHon').value);
+    const sp=NC.haigusha(hon,{has:true,age,salary:sal,other:oth});
+    h=`<div class="verdict${sp.kojo?'':' no'}"><div class="k">${sp.kind||'対象外'}</div><div class="big">${sp.kojo?man(sp.kojo):'控除なし'}</div>
+      <div class="rsub">給与所得 <b>${fmt(ks)}</b>　合計所得 <b>${fmt(G)}</b></div>
+      ${gauge(sal,2200000,['0','136万','169万','207万'])}</div>
+      <div class="note" style="margin-top:10px">配偶者の給与収入136万円以下は配偶者控除、169万円以下までは配偶者特別控除も満額38万円。207万円を超えると控除なし。${sp.note?'<br>'+sp.note:''}</div>`;
+  }else{
+    const k=NC.kiso(G);const tax=NC.nencho({salary:sal,otherIncome:oth});
+    h=`<div class="verdict"><div class="k">本人の基礎控除</div><div class="big">${man(k)}</div>
+      <div class="rsub">給与所得 <b>${fmt(ks)}</b>　合計所得 <b>${fmt(G)}</b></div>
+      ${gauge(G,6550000,['0','489万','655万'])}</div>
+      <div class="note" style="margin-top:10px">社会保険料などの控除がない場合の年税額：<b style="color:var(--jade-hot)">${fmt(tax.nenzei)}円</b>。給与収入178万円（給与所得104万円）までは所得税がかかりません。合計所得489万円（給与収入約665万円）以下なら基礎控除104万円。</div>`;
+  }
+  $('jOut').innerHTML=h;
+}
+
+/* ---------- 早見表 ---------- */
+function tables(){
+  const R=NC.R;
+  $('walls').innerHTML=[
+    ['178万円','本人に所得税がかからない上限','基礎控除104万円＋給与所得控除74万円（社会保険料等がない場合）'],
+    ['136万円','扶養親族・配偶者控除の上限','合計所得62万円以下'],
+    ['163万円','勤労学生控除の上限','合計所得89万円以下'],
+    ['169万円','配偶者特別控除が満額（38万円）の上限','合計所得95万円以下'],
+    ['197万円','特定親族特別控除の上限（19〜22歳）','159万円以下なら満額63万円'],
+    ['207万円','配偶者特別控除の上限','合計所得133万円以下'],
+    ['約665万円','本人の基礎控除104万円の上限','合計所得489万円以下'],
+  ].map(([v,d,s])=>`<div class="v">${v}</div><div class="d">${d}<small>${s}</small></div>`).join('');
+  const kr=[['489万円以下','約665万円以下',R.kiso[0][1]],['489万円超 655万円以下','850万円以下',R.kiso[1][1]],['655万円超 2,350万円以下','2,545万円以下',R.kiso[2][1]],
+    ['2,350万円超 2,400万円以下','',R.kiso[3][1]],['2,400万円超 2,450万円以下','',R.kiso[4][1]],['2,450万円超 2,500万円以下','',R.kiso[5][1]],['2,500万円超','',0]];
+  $('tKiso').innerHTML='<tr><th>合計所得金額</th><th>給与収入の目安</th><th>控除額</th></tr>'+kr.map(([a,b,c],i)=>`<tr${i===0?' class="hl"':''}><td class="j">${a}</td><td>${b}</td><td>${c?man(c):'0円'}</td></tr>`).join('');
+  let prev=620000,prevSal=1360000;
+  const salOf=s=>s+740000;
+  let hh='<tr><th>配偶者の合計所得</th><th>給与収入</th><th>本人 900万以下</th><th>950万以下</th><th>1,000万以下</th></tr>';
+  hh+=`<tr class="hl"><td class="j">62万円以下</td><td>136万以下</td><td>38(48)</td><td>26(32)</td><td>13(16)</td></tr>`;
+  R.haiToku.forEach(([lim,a])=>{hh+=`<tr><td class="j">${prev/1e4}万超 ${lim/1e4}万以下</td><td>${salOf(lim)/1e4}万以下</td>${a.map(v=>`<td>${v/1e4}</td>`).join('')}</tr>`;prev=lim});
+  $('tHai').innerHTML=hh;
+  $('tFuyo').innerHTML='<tr><th>区分（12月31日時点の年齢）</th><th>控除額</th></tr>'+
+    [['一般（16〜18歳・23〜69歳）',380000],['特定扶養（19〜22歳）',630000],['老人扶養（70歳以上）',480000],['同居老親等（70歳以上）',580000],['16歳未満',0]]
+    .map(([a,b])=>`<tr><td class="j">${a}</td><td>${b?man(b):'なし'}</td></tr>`).join('')+'<tr><td class="j" colspan="2" style="color:var(--muted);font-size:12px">いずれも合計所得62万円以下（給与収入136万円以下）</td></tr>';
+  prev=620000;let tt='<tr><th>特定親族（19〜22歳）の合計所得</th><th>給与収入</th><th>控除額</th></tr>';
+  R.tokuteiShinzoku.forEach(([lim,v])=>{tt+=`<tr><td class="j">${prev/1e4}万超 ${lim/1e4}万以下</td><td>${salOf(lim)/1e4}万以下</td><td>${man(v)}</td></tr>`;prev=lim});
+  $('tTok').innerHTML=tt;
+  $('tKyu').innerHTML='<tr><th>給与収入</th><th>給与所得</th></tr>'+[
+    ['74万1,000円未満','0円'],['74万1,000円〜219万1,000円未満','収入 − 74万円'],['219万1,000円〜219万3,000円未満','145万1,000円'],
+    ['219万3,000円〜219万6,000円未満','145万3,000円'],['219万6,000円〜220万円未満','145万6,000円'],['220万円〜360万円未満','A×2.8 − 8万円'],
+    ['360万円〜660万円未満','A×3.2 − 44万円'],['660万円〜850万円未満','収入×90% − 110万円'],['850万円以上','収入 − 195万円']
+  ].map(([a,b])=>`<tr><td class="j">${a}</td><td class="j">${b}</td></tr>`).join('')+'<tr><td class="j" colspan="2" style="color:var(--muted);font-size:12px">A＝収入金額÷4（千円未満切捨て）</td></tr>';
+  $('tSei').innerHTML='<tr><th>一般・新契約の支払額</th><th>特例（23歳未満あり）</th><th>通常</th></tr>'+
+    [['3万円以下','全額','2万円以下 全額'],['3万超 6万以下','×1/2＋1.5万','×1/2＋1万（4万以下）'],['6万超 12万以下','×1/4＋3万','×1/4＋2万（8万以下）'],['12万円超','6万円','4万円（8万超）']]
+    .map(r=>`<tr>${r.map((c,i)=>`<td class="j">${c}</td>`).join('')}</tr>`).join('');
+  let lo=1000;$('tRate').innerHTML='<tr><th>課税所得金額</th><th>税率</th><th>控除額</th></tr>'+R.rate.map(([lim,r,k])=>{
+    const s=`<tr><td class="j">${fmt(lo)}円〜${lim===Infinity?'':fmt(lim)+'円'}</td><td>${Math.round(r*100)}%</td><td>${fmt(k)}</td></tr>`;lo=lim+1000;return s}).join('');
+}
+
+/* ---------- タブ ---------- */
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  const t=b.dataset.tab;
+  document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  ['calc','judge','table','kaisei'].forEach(v=>$('v-'+v).hidden=v!==t);
+  window.scrollTo(0,0);
+}));
+
+$('reset').addEventListener('click',()=>{
+  const b=$('reset');
+  if(b.dataset.armed){
+    S={salary:0,withheld:0,otherIncome:0,honninShogai:'',kafu:'',kinroGakusei:false,shaho:0,shokibo:0,jishin:0,jishinOld:0,jutaku:0,
+      seiho:{ippanNew:0,ippanOld:0,kaigo:0,nenkinNew:0,nenkinOld:0},spouse:{has:false,age:45,salary:0,other:0,shogai:''},deps:[]};
+    sample=false;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}location.reload();
+  }else{b.dataset.armed='1';b.textContent='もう一度押すと消去します';setTimeout(()=>{delete b.dataset.armed;b.textContent='入力をすべて消す'},3000)}
+});
+
+renderDeps();calc();judge();tables();
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+})();
+</script>
+</body>
+</html>
